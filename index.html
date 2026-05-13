@@ -1,0 +1,2132 @@
+html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLACKNODE OS v2.4.7</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+
+/* ═══════════════════════════════════════════════════════
+   ROOT VARIABLES
+═══════════════════════════════════════════════════════ */
+:root {
+  --green:       #00ff41;
+  --green-dim:   #006619;
+  --green-mid:   #00b32d;
+  --green-glow:  rgba(0,255,65,0.45);
+  --green-faint: rgba(0,255,65,0.04);
+  --cyan:        #00d4ff;
+  --red:         #ff0040;
+  --red-glow:    rgba(255,0,64,0.4);
+  --orange:      #ff7700;
+  --bg:          #000000;
+  --border:      rgba(0,255,65,0.18);
+  --font-term:   'VT323', monospace;
+  --font-ui:     'Share Tech Mono', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--green);
+  font-family: var(--font-term);
+  font-size: 19px;
+  line-height: 1.4;
+}
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--green-dim); border-radius: 2px; }
+
+::selection { background: var(--green); color: #000; }
+
+/* ═══════════════════════════════════════════════════════
+   MATRIX RAIN CANVAS
+═══════════════════════════════════════════════════════ */
+#matrix-bg {
+  position: fixed; inset: 0;
+  z-index: 0;
+  opacity: 0.10;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════
+   CRT OVERLAY  (scanlines + vignette + flicker)
+═══════════════════════════════════════════════════════ */
+#crt-overlay {
+  position: fixed; inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  animation: crt-flicker 0.12s infinite;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0) 0px, rgba(0,0,0,0) 1px,
+      rgba(0,0,0,0.10) 1px, rgba(0,0,0,0.10) 2px
+    );
+}
+#crt-overlay::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+}
+@keyframes crt-flicker {
+  0%  { opacity:1 }  48% { opacity:1 }
+  49% { opacity:0.97 } 50% { opacity:1 }
+  91% { opacity:1 }  92% { opacity:0.96 } 93% { opacity:1 } 100% { opacity:1 }
+}
+
+/* ═══════════════════════════════════════════════════════
+   BOOT SCREEN
+═══════════════════════════════════════════════════════ */
+#boot-screen {
+  position: fixed; inset: 0;
+  z-index: 1000;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  transition: opacity 0.6s ease;
+}
+#boot-screen.fade-out { opacity: 0; pointer-events: none; }
+
+#boot-logo {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--green);
+  text-shadow: 0 0 12px var(--green), 0 0 24px var(--green-dim);
+  margin-bottom: 32px;
+  white-space: pre;
+  animation: glow-pulse 2.5s ease-in-out infinite;
+  text-align: center;
+}
+#boot-log {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--green);
+  max-width: 680px;
+  width: 100%;
+  min-height: 200px;
+}
+.boot-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  opacity: 0;
+  animation: fade-in 0.08s forwards;
+  border-bottom: 1px solid rgba(0,255,65,0.04);
+}
+.b-ok   { color: var(--green); }
+.b-warn { color: var(--orange); }
+.b-err  { color: var(--red); }
+#boot-pbar-wrap {
+  max-width: 680px; width: 100%;
+  height: 3px;
+  background: var(--green-dim);
+  margin-top: 14px;
+}
+#boot-pbar {
+  height: 100%;
+  width: 0%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  transition: width 0.1s linear;
+}
+#boot-skip {
+  margin-top: 18px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: rgba(0,255,65,0.3);
+  letter-spacing: 1px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MAIN UI LAYOUT
+═══════════════════════════════════════════════════════ */
+#main-ui {
+  position: fixed; inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: row;
+}
+#main-ui.hidden { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════════════════ */
+#sidebar {
+  width: 255px;
+  min-width: 255px;
+  height: 100%;
+  border-right: 1px solid var(--border);
+  background: var(--green-faint);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.s-panel {
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.s-title {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  color: var(--green-dim);
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* stat rows */
+.srow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+}
+.slabel { color: var(--green-dim); width: 30px; flex-shrink: 0; }
+.sbar-wrap {
+  flex: 1;
+  height: 5px;
+  background: rgba(0,255,65,0.08);
+  border: 1px solid var(--green-dim);
+  overflow: hidden;
+}
+.sbar-fill {
+  height: 100%;
+  background: var(--green);
+  box-shadow: 0 0 5px var(--green);
+  transition: width 0.6s ease, background 0.4s;
+}
+.sval {
+  color: var(--green);
+  width: 44px;
+  text-align: right;
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+/* trace */
+#trace-fill {
+  height: 100%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  transition: width 0.9s ease, background 0.5s, box-shadow 0.5s;
+}
+.tr-low  { background: var(--green)  !important; box-shadow: 0 0 6px var(--green)  !important; }
+.tr-mid  { background: var(--orange) !important; box-shadow: 0 0 6px var(--orange) !important; }
+.tr-high { background: var(--red)    !important; box-shadow: 0 0 6px var(--red)    !important; animation: blink-bar 0.4s infinite alternate; }
+@keyframes blink-bar { from{opacity:1} to{opacity:0.25} }
+
+/* info rows */
+.irow {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--green-dim);
+  padding: 2px 0;
+}
+.irow span { color: var(--green); }
+
+/* filesystem */
+#fs-display {
+  font-family: var(--font-ui);
+  font-size: 10px;
+}
+.fs-item {
+  color: var(--green);
+  padding: 1px 0;
+}
+.fs-item::before { content: '> '; color: var(--green-dim); }
+
+/* log feed */
+#log-feed {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  color: var(--green-dim);
+  max-height: 130px;
+  overflow-y: auto;
+}
+.log-line {
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(0,255,65,0.04);
+  animation: fade-in 0.3s ease;
+  line-height: 1.3;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TERMINAL
+═══════════════════════════════════════════════════════ */
+#terminal-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  min-width: 0;
+}
+
+#term-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,255,65,0.02);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+#term-header .brand {
+  color: var(--green);
+  letter-spacing: 3px;
+  text-shadow: 0 0 8px var(--green);
+  font-weight: bold;
+}
+#term-header .hinfo {
+  display: flex;
+  gap: 20px;
+  color: var(--green-dim);
+}
+#hdr-status { color: var(--green); }
+
+#term-out {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 16px 6px;
+  scroll-behavior: smooth;
+}
+
+/* terminal lines */
+.tl {
+  font-family: var(--font-term);
+  font-size: 20px;
+  padding: 1px 0;
+  word-break: break-all;
+  animation: fade-in 0.08s ease;
+  white-space: pre-wrap;
+}
+.tl.sys     { color: var(--green-mid); }
+.tl.ok      { color: #39ff14; text-shadow: 0 0 7px var(--green); }
+.tl.err     { color: var(--red); text-shadow: 0 0 6px var(--red-glow); }
+.tl.warn    { color: var(--orange); text-shadow: 0 0 5px rgba(255,119,0,0.5); }
+.tl.info    { color: var(--cyan); text-shadow: 0 0 5px rgba(0,212,255,0.4); }
+.tl.dim     { color: var(--green-dim); }
+.tl.story   { color: var(--green); }
+.tl.echo    { color: var(--green); opacity: 0.55; }
+.tl.blank   { min-height: 9px; display: block; }
+.tl.big     { font-size: 28px; }
+.tl.huge    { font-size: 34px; font-weight: bold; text-shadow: 0 0 18px var(--green), 0 0 30px var(--green-dim); }
+.tl.huge.err { text-shadow: 0 0 18px var(--red), 0 0 30px var(--red-glow); }
+
+/* input row */
+#term-input-row {
+  display: flex;
+  align-items: center;
+  padding: 7px 16px 11px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 0;
+  background: rgba(0,255,65,0.01);
+}
+#prompt {
+  font-family: var(--font-term);
+  font-size: 20px;
+  color: var(--green);
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-shadow: 0 0 6px var(--green);
+}
+#input-area {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+#cmd-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--green);
+  font-family: var(--font-term);
+  font-size: 20px;
+  text-shadow: 0 0 4px var(--green);
+  caret-color: transparent;
+  padding: 0;
+}
+#fake-cur {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--green);
+  font-family: var(--font-term);
+  font-size: 20px;
+  text-shadow: 0 0 6px var(--green);
+  animation: blink-cur 1s step-end infinite;
+  pointer-events: none;
+  line-height: 1;
+}
+@keyframes blink-cur { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* progress bar */
+.prog-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 3px 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+.prog-label { color: var(--green-dim); min-width: 200px; }
+.prog-bar {
+  width: 260px;
+  height: 9px;
+  border: 1px solid var(--green-dim);
+  background: rgba(0,255,65,0.04);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.prog-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--green);
+  box-shadow: 0 0 5px var(--green);
+  transition: width 0.08s linear;
+}
+.prog-pct { color: var(--green); width: 36px; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════════════════ */
+@keyframes fade-in {
+  from { opacity:0; transform: translateY(3px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+@keyframes glow-pulse {
+  0%,100% { text-shadow: 0 0 10px var(--green), 0 0 20px var(--green-dim); }
+  50%     { text-shadow: 0 0 22px var(--green), 0 0 45px var(--green), 0 0 65px var(--green-dim); }
+}
+@keyframes glitch-anim {
+  0%   { transform:translate(0)         ; filter: none; }
+  10%  { transform:translate(-5px, 2px) ; filter: hue-rotate(90deg) brightness(1.4); }
+  20%  { transform:translate(5px, -2px) ; filter: hue-rotate(-90deg); }
+  30%  { transform:translate(0)         ; filter: none; }
+  40%  { transform:translate(-3px, 0)   ; filter: brightness(0.6); }
+  50%  { transform:translate(3px, 2px)  ; filter: none; }
+  60%  { transform:translate(0)         ; filter: hue-rotate(180deg); }
+  70%  { transform:translate(-2px,-2px) ; filter: none; }
+  100% { transform:translate(0)         ; filter: none; }
+}
+.glitching { animation: glitch-anim 0.45s steps(1) forwards; }
+@keyframes warn-flash {
+  0%,100% { background: transparent; }
+  40%     { background: rgba(255,0,64,0.07); }
+}
+.w-flash { animation: warn-flash 0.3s 3; }
+
+.hidden { display: none !important; }
+
+</style>
+</head>
+<body>
+
+<!-- Matrix rain backdrop -->
+<canvas id="matrix-bg"></canvas>
+<!-- CRT scanline / vignette overlay -->
+<div id="crt-overlay"></div>
+
+<!-- ══════════════ BOOT SCREEN ══════════════ -->
+<div id="boot-screen">
+  <pre id="boot-logo"></pre>
+  <div id="boot-log"></div>
+  <div id="boot-pbar-wrap"><div id="boot-pbar"></div></div>
+  <div id="boot-skip">[ PRESS ANY KEY OR CLICK TO SKIP ]</div>
+</div>
+
+<!-- ══════════════ MAIN UI ══════════════ -->
+<div id="main-ui" class="hidden">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+
+    <div class="s-panel">
+      <div class="s-title">// BLACKNODE OS</div>
+      <div style="font-family:var(--font-ui);font-size:10px;line-height:1.8;">
+        <div style="color:var(--green);">v2.4.7  GHOST EDITION</div>
+        <div id="s-session" style="color:var(--green-dim);">SESSION: INIT...</div>
+      </div>
+    </div>
+
+    <div class="s-panel">
+      <div class="s-title">// SYSTEM RESOURCES</div>
+      <div class="srow">
+        <span class="slabel">CPU</span>
+        <div class="sbar-wrap"><div class="sbar-fill" id="cpu-fill" style="width:0%"></div></div>
+        <span class="sval" id="cpu-val">0%</span>
+      </div>
+      <div class="srow">
+        <span class="slabel">RAM</span>
+        <div class="sbar-wrap"><div class="sbar-fill" id="ram-fill" style="width:0%"></div></div>
+        <span class="sval" id="ram-val">0.0GB</span>
+      </div>
+      <div class="srow">
+        <span class="slabel">NET</span>
+        <div class="sbar-wrap"><div class="sbar-fill" id="net-fill" style="width:0%"></div></div>
+        <span class="sval" id="net-val">0MB/s</span>
+      </div>
+      <div class="srow">
+        <span class="slabel">DISK</span>
+        <div class="sbar-wrap"><div class="sbar-fill" id="dsk-fill" style="width:38%"></div></div>
+        <span class="sval" id="dsk-val">38%</span>
+      </div>
+    </div>
+
+    <div class="s-panel" id="trace-panel">
+      <div class="s-title">// TRACE RISK</div>
+      <div class="srow" style="margin-bottom:5px;">
+        <div class="sbar-wrap" style="height:9px;flex:1;">
+          <div id="trace-fill" class="tr-low" style="width:0%;height:100%;"></div>
+        </div>
+      </div>
+      <div style="font-family:var(--font-ui);font-size:10px;display:flex;justify-content:space-between;">
+        <span style="color:var(--green-dim);">RISK LEVEL:</span>
+        <span id="trace-pct" style="color:var(--green);">0%</span>
+      </div>
+    </div>
+
+    <div class="s-panel">
+      <div class="s-title">// SESSION INFO</div>
+      <div class="irow">TARGET: <span id="s-target">NONE</span></div>
+      <div class="irow">LEVEL&nbsp;: <span id="s-level">0</span></div>
+      <div class="irow">NODE&nbsp;&nbsp;: <span id="s-node">BLACKNODE_PROXY_01</span></div>
+      <div class="irow">UPTIME: <span id="s-time">00:00:00</span></div>
+    </div>
+
+    <div class="s-panel">
+      <div class="s-title">// FILESYSTEM</div>
+      <div id="fs-display">
+        <span style="font-family:var(--font-ui);font-size:10px;color:var(--green-dim);">[ EMPTY ]</span>
+      </div>
+    </div>
+
+    <div class="s-panel" style="flex:1;">
+      <div class="s-title">// NETWORK LOG</div>
+      <div id="log-feed"></div>
+    </div>
+
+  </aside>
+
+  <!-- TERMINAL -->
+  <div id="terminal-wrap">
+    <div id="term-header">
+      <span class="brand">▌ BLACKNODE OS v2.4.7 — GHOST EDITION ▐</span>
+      <div class="hinfo">
+        <span id="hdr-status">READY</span>
+        <span id="hdr-time">00:00:00</span>
+      </div>
+    </div>
+    <div id="term-out"></div>
+    <div id="term-input-row">
+      <span id="prompt">root@BLACKNODE:~$&nbsp;</span>
+      <div id="input-area">
+        <input type="text" id="cmd-input" autocomplete="off" spellcheck="false" autofocus>
+        <span id="fake-cur">█</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- #main-ui -->
+
+<script>
+/* ================================================================
+   BLACKNODE OS v2.4.7 — GHOST HACKING SIMULATOR
+   A story-driven cyberpunk terminal game.
+   
+   Architecture:
+     Audio    — Web Audio API synth sounds + ambient drone
+     Matrix   — Canvas falling-character rain backdrop
+     GS       — Global game state
+     T        — Terminal output engine
+     Sidebar  — Live stat panel updater
+     Commands — All command handlers + router
+     Save     — localStorage persistence
+     Input    — Keyboard handler
+     Boot     — Intro animation sequence
+================================================================ */
+
+'use strict';
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const rand  = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const $     = id => document.getElementById(id);
+
+/* ───────────────────────────────────────────────────────────────
+   AUDIO ENGINE  (all sounds synthesised via Web Audio API)
+─────────────────────────────────────────────────────────────── */
+const Audio = (() => {
+  let ctx = null;
+  let ambGain = null;
+  let muted = false;
+
+  function init() {
+    if (ctx) return;
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      _startAmbient();
+    } catch(e) {}
+  }
+
+  /* Subtle machine-hum drone */
+  function _startAmbient() {
+    ambGain = ctx.createGain();
+    ambGain.gain.setValueAtTime(0.035, ctx.currentTime);
+    ambGain.connect(ctx.destination);
+
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(55, ctx.currentTime);
+
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(110.3, ctx.currentTime);
+
+    const lfo = ctx.createOscillator();
+    const lfoG = ctx.createGain();
+    lfo.frequency.setValueAtTime(0.25, ctx.currentTime);
+    lfoG.gain.setValueAtTime(2.5, ctx.currentTime);
+    lfo.connect(lfoG);
+    lfoG.connect(osc1.frequency);
+
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'lowpass';
+    flt.frequency.setValueAtTime(350, ctx.currentTime);
+    flt.Q.setValueAtTime(2, ctx.currentTime);
+
+    osc1.connect(flt); osc2.connect(flt); flt.connect(ambGain);
+    osc1.start(); osc2.start(); lfo.start();
+  }
+
+  function _tone(freq, type, dur, vol) {
+    if (!ctx || muted) return;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, ctx.currentTime);
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(ctx.currentTime); o.stop(ctx.currentTime + dur);
+  }
+
+  function _noise(dur, vol, freq) {
+    if (!ctx || muted) return;
+    const n = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random()*2-1) * (1 - i/n);
+    const src = ctx.createBufferSource();
+    const g   = ctx.createGain();
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'bandpass';
+    flt.frequency.setValueAtTime(freq || 1200, ctx.currentTime);
+    src.buffer = buf;
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    src.connect(flt); flt.connect(g); g.connect(ctx.destination);
+    src.start();
+  }
+
+  return {
+    init,
+    click:   () => _noise(0.018, 0.035, 1400),
+    type:    () => _noise(0.012, 0.022, 900),
+    error:   () => {
+      _tone(196, 'square', 0.15, 0.14);
+      setTimeout(() => _tone(147, 'square', 0.22, 0.10), 160);
+    },
+    success: () => {
+      _tone(523, 'sine', 0.12, 0.11);
+      setTimeout(() => _tone(659, 'sine', 0.12, 0.11), 110);
+      setTimeout(() => _tone(784, 'sine', 0.22, 0.14), 220);
+    },
+    connect: () => {
+      for (let i=0;i<5;i++) setTimeout(()=>_tone(180+i*90,'square',0.07,0.07),i*55);
+    },
+    alarm:   () => {
+      for (let i=0;i<4;i++) {
+        setTimeout(()=>_tone(880,'square',0.09,0.13), i*200);
+        setTimeout(()=>_tone(660,'square',0.09,0.13), i*200+100);
+      }
+    },
+    glitch:  () => { _noise(0.07, 0.14, 600); setTimeout(()=>_noise(0.04,0.09,2000),75); },
+    setMuted: v => { muted=v; if(ambGain && ctx) ambGain.gain.setValueAtTime(v?0:0.035,ctx.currentTime); },
+  };
+})();
+
+/* ───────────────────────────────────────────────────────────────
+   MATRIX RAIN
+─────────────────────────────────────────────────────────────── */
+(function() {
+  const cv = $('matrix-bg');
+  const cx = cv.getContext('2d');
+  const CH = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%^&*_+-=[]{}|;:,.<>?/ｱｲｳｴｵｶｷｸｹｺ01';
+  let cols = [];
+
+  function resize() {
+    cv.width  = window.innerWidth;
+    cv.height = window.innerHeight;
+    const n = Math.floor(cv.width / 16);
+    cols = Array.from({length:n}, ()=>rand(0, cv.height/18));
+  }
+
+  function draw() {
+    cx.fillStyle = 'rgba(0,0,0,0.045)';
+    cx.fillRect(0, 0, cv.width, cv.height);
+    cx.font = '13px Share Tech Mono';
+    cols.forEach((y, i) => {
+      const ch = CH[rand(0, CH.length-1)];
+      const x  = i * 16;
+      cx.globalAlpha = Math.random() * 0.55 + 0.25;
+      cx.fillStyle   = Math.random() > 0.96 ? '#ffffff' : '#00ff41';
+      cx.fillText(ch, x, y * 18);
+      cx.globalAlpha = 1;
+      if (y * 18 > cv.height && Math.random() > 0.972) cols[i] = 0;
+      else cols[i]++;
+    });
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+  setInterval(draw, 50);
+})();
+
+/* ───────────────────────────────────────────────────────────────
+   GAME STATE
+─────────────────────────────────────────────────────────────── */
+const GS = {
+  level:          0,
+  target:         'NONE',
+  traceRisk:      0,
+  history:        [],
+  histIdx:        -1,
+  filesystem:     {},
+  pending:        null,   // next-input callback (challenges)
+  gameOver:       false,
+  started:        false,
+  sessionStart:   Date.now(),
+  flags: {
+    nasaHacked:      false,
+    adminDone:       false,
+    ciaDone:         false,
+    pentagonDone:    false,
+    teacherDone:     false,
+    decryptDone:     false,
+    backdoorFound:   false,
+    finalChoice:     null,
+  },
+  // Puzzle answers
+  ADMIN_PASS:   'BLACKN0DE_7734',
+  CIA_ANS:      '18',
+  PENT_ANS:     '10',
+  TEACH_FILE:   'access.key',
+  TEACH_PASS:   'G#OST_7734',
+};
+
+/* ───────────────────────────────────────────────────────────────
+   TERMINAL ENGINE
+─────────────────────────────────────────────────────────────── */
+const T = (() => {
+  const out = $('term-out');
+
+  function line(txt, cls='') {
+    const d = document.createElement('div');
+    d.className = `tl ${cls}`;
+    d.textContent = txt;
+    out.appendChild(d);
+    out.scrollTop = out.scrollHeight;
+    return d;
+  }
+
+  function blank() {
+    const d = document.createElement('div');
+    d.className = 'tl blank';
+    out.appendChild(d);
+    out.scrollTop = out.scrollHeight;
+  }
+
+  function clear() { out.innerHTML = ''; }
+
+  async function type(txt, cls='', delay=28) {
+    const d = document.createElement('div');
+    d.className = `tl ${cls}`;
+    out.appendChild(d);
+    out.scrollTop = out.scrollHeight;
+    for (const ch of txt) {
+      d.textContent += ch;
+      out.scrollTop = out.scrollHeight;
+      if (ch !== ' ') Audio.type();
+      await sleep(delay);
+    }
+    return d;
+  }
+
+  async function batch(arr, cls='', gap=75) {
+    for (const txt of arr) {
+      if (!txt) blank();
+      else line(txt, cls);
+      await sleep(gap);
+    }
+  }
+
+  async function progress(label, ms=2000) {
+    const row  = document.createElement('div');
+    row.className = 'prog-row';
+    const lbl  = document.createElement('span');  lbl.className='prog-label'; lbl.textContent=label;
+    const wrap = document.createElement('div');   wrap.className='prog-bar';
+    const fill = document.createElement('div');   fill.className='prog-fill';
+    const pct  = document.createElement('span');  pct.className='prog-pct';   pct.textContent='0%';
+    wrap.appendChild(fill);
+    row.appendChild(lbl); row.appendChild(wrap); row.appendChild(pct);
+    out.appendChild(row);
+    out.scrollTop = out.scrollHeight;
+
+    return new Promise(res => {
+      let v = 0;
+      const step = 100 / (ms / 48);
+      const iv = setInterval(() => {
+        v = Math.min(100, v + step + Math.random()*step*0.4);
+        fill.style.width = v+'%';
+        pct.textContent  = Math.floor(v)+'%';
+        out.scrollTop = out.scrollHeight;
+        if (v >= 100) { clearInterval(iv); fill.style.width='100%'; pct.textContent='100%'; res(); }
+      }, 48);
+    });
+  }
+
+  function glitch() {
+    $('terminal-wrap').classList.add('glitching');
+    setTimeout(()=>$('terminal-wrap').classList.remove('glitching'), 450);
+    Audio.glitch();
+  }
+
+  function warnFlash() {
+    document.body.classList.add('w-flash');
+    setTimeout(()=>document.body.classList.remove('w-flash'), 900);
+  }
+
+  return { line, blank, clear, type, batch, progress, glitch, warnFlash };
+})();
+
+/* ───────────────────────────────────────────────────────────────
+   SIDEBAR  (live stats + log feed)
+─────────────────────────────────────────────────────────────── */
+const Sidebar = (() => {
+  let cpuBase=22, netBase=0;
+
+  function tick() {
+    const cpu  = clamp(cpuBase + rand(-7,7) + (GS.target!=='NONE'?rand(8,22):0), 4, 95);
+    const ramP = clamp(26 + rand(-3,3) + GS.level*2, 12, 85);
+    const netP = clamp(netBase + rand(-6,6), 0, 100);
+
+    $('cpu-fill').style.width = cpu+'%';
+    $('cpu-val').textContent  = cpu+'%';
+    $('cpu-fill').style.background    = cpu>78?'var(--red)':cpu>58?'var(--orange)':'var(--green)';
+    $('cpu-fill').style.boxShadow     = `0 0 4px ${cpu>78?'var(--red)':'var(--green)'}`;
+
+    $('ram-fill').style.width = ramP+'%';
+    $('ram-val').textContent  = (ramP/100*8).toFixed(1)+'GB';
+    $('net-fill').style.width = netP+'%';
+    $('net-val').textContent  = (netP*13).toFixed(0)+'MB/s';
+
+    /* trace bar */
+    const tf  = $('trace-fill');
+    const tr  = GS.traceRisk;
+    tf.style.width = tr+'%';
+    $('trace-pct').textContent = Math.floor(tr)+'%';
+    if      (tr<35) { tf.className='tr-low';  $('trace-pct').style.color='var(--green)';  }
+    else if (tr<70) { tf.className='tr-mid';  $('trace-pct').style.color='var(--orange)'; }
+    else            { tf.className='tr-high'; $('trace-pct').style.color='var(--red)';    }
+
+    /* session panel */
+    $('s-target').textContent = GS.target;
+    $('s-level').textContent  = GS.level;
+
+    const el  = Math.floor((Date.now()-GS.sessionStart)/1000);
+    const hh  = String(Math.floor(el/3600)).padStart(2,'0');
+    const mm  = String(Math.floor((el%3600)/60)).padStart(2,'0');
+    const ss  = String(el%60).padStart(2,'0');
+    $('s-time').textContent   = `${hh}:${mm}:${ss}`;
+    $('hdr-time').textContent = new Date().toLocaleTimeString();
+
+    /* filesystem */
+    const files = Object.keys(GS.filesystem);
+    const fsEl  = $('fs-display');
+    if (!files.length) {
+      fsEl.innerHTML = '<span style="font-family:var(--font-ui);font-size:10px;color:var(--green-dim);">[ EMPTY ]</span>';
+    } else {
+      fsEl.innerHTML = files.map(f=>`<div class="fs-item">${f}</div>`).join('');
+    }
+
+    /* session id */
+    const sid = Math.floor((Date.now()-GS.sessionStart)/1000);
+    $('s-session').textContent = `SESSION: ${String(sid).padStart(6,'0')}`;
+  }
+
+  const LOG_MSGS = [
+    'PACKET_TRACE active on :8080',
+    'GHOST relay: 192.168.7.'+rand(1,255),
+    'Firewall rule updated: ALLOW',
+    'Neural sync: stable',
+    'Encrypted tunnel: ACTIVE',
+    'Node heartbeat received',
+    'Memory scrub: OK',
+    'BLACKNODE monitoring: ACTIVE',
+    'Data fragment indexed',
+    'Unknown signal detected',
+    'Route optimized: '+rand(8,22)+'ms',
+    'Session key rotated',
+    'Proxy chain: 7 nodes',
+    'Bandwidth throttle: OFF',
+    'Intrusion counter: steady',
+    'ICMP echo suppressed',
+    'DNS leak test: CLEAN',
+  ];
+
+  function addLog(msg) {
+    const feed = $('log-feed');
+    const t = new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+    const e = document.createElement('div');
+    e.className = 'log-line';
+    e.textContent = `[${t}] ${msg}`;
+    feed.appendChild(e);
+    while (feed.children.length > 14) feed.removeChild(feed.firstChild);
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function init() {
+    tick();
+    setInterval(tick, 650);
+    setInterval(()=>{
+      if (GS.started) addLog(LOG_MSGS[rand(0,LOG_MSGS.length-1)]);
+    }, 2800);
+  }
+
+  function setTarget(t) {
+    GS.target = t;
+    netBase  = (t!=='NONE') ? rand(28,72) : 0;
+    cpuBase  = (t!=='NONE') ? rand(30,60) : 22;
+  }
+
+  function addTrace(n) {
+    GS.traceRisk = clamp(GS.traceRisk+n, 0, 100);
+    if (GS.traceRisk>65 && n>0) { Audio.alarm(); T.warnFlash(); }
+  }
+
+  return { init, setTarget, addTrace, addLog };
+})();
+
+/* ───────────────────────────────────────────────────────────────
+   COMMAND HANDLERS
+─────────────────────────────────────────────────────────────── */
+const Commands = (() => {
+
+  /* Available commands per level */
+  const AVAIL = {
+    0: ['help','whoami','scan','status','hack','admin','clear','trace'],
+    1: ['help','whoami','scan','status','hack','admin','clear','trace','connect','disconnect','home','logs','read','show'],
+    2: ['help','whoami','scan','status','hack','admin','clear','trace','connect','disconnect','home','logs','read','show','decrypt','override'],
+    3: ['help','whoami','scan','status','hack','admin','clear','trace','connect','disconnect','home','logs','read','show','decrypt','override','create','write','delete','backdoor'],
+    4: ['help','whoami','scan','status','hack','admin','clear','trace','connect','disconnect','home','logs','read','show','decrypt','override','create','write','delete','backdoor','accept','resist','escape'],
+  };
+
+  const DESCS = {
+    help:'Show available commands', whoami:'Display user identity', scan:'Scan for network nodes',
+    status:'System diagnostics', hack:'Hack a target  [hack nasa]', admin:'Admin panel access',
+    clear:'Clear terminal', trace:'Show trace analysis', connect:'Connect to a node  [connect <name>]',
+    disconnect:'Terminate active connection', home:'Return to base node',
+    logs:'Read access logs', read:'Read a file  [read <name>]',
+    show:'Show stored data  [show password]',
+    decrypt:'Decrypt captured transmissions', override:'Attempt system override',
+    create:'Create file  [create <name>]', write:'Write to file  [write <name> <data>]',
+    delete:'Delete file  [delete <name>]', backdoor:'Search for backdoors',
+    accept:'Accept BLACKNODE\'s offer', resist:'Resist BLACKNODE',
+    escape:'[ CLASSIFIED ]',
+  };
+
+  /* ── help ── */
+  function cmdHelp() {
+    T.blank();
+    T.line('╔════════════════════════════════════════╗','dim');
+    T.line('║     BLACKNODE COMMAND REFERENCE         ║','dim');
+    T.line('╚════════════════════════════════════════╝','dim');
+    T.blank();
+    const list = AVAIL[GS.level] || AVAIL[0];
+    list.forEach(c => T.line(`  ${c.padEnd(13)} — ${DESCS[c]||'???'}`, 'sys'));
+    T.blank();
+    Audio.connect();
+  }
+
+  /* ── whoami ── */
+  function cmdWhoami() {
+    T.blank();
+    T.line('> IDENTITY QUERY', 'dim');
+    T.line(`  USER      : GHOST_7734`, 'info');
+    T.line(`  CLEARANCE : ${GS.level>1?'ROOT':GS.level>0?'ELEVATED':'GUEST'}`, 'info');
+    T.line(`  SESSION   : ACTIVE`, 'info');
+    T.line(`  NODE      : BLACKNODE_PROXY_0${rand(1,9)}`, 'info');
+    if (GS.level>=1) T.line('  ALIASES   : CIPHER // PHANTOM // WRAITH', 'dim');
+    if (GS.level>=3) T.line('  WARNING   : YOUR PATTERN HAS BEEN INDEXED', 'warn');
+    T.blank();
+  }
+
+  /* ── scan ── */
+  async function cmdScan() {
+    T.blank();
+    T.line('[SCANNING NETWORK TOPOLOGY...]', 'dim');
+    Sidebar.addTrace(4);
+    await T.progress('DEEP PACKET ANALYSIS', 1700);
+    T.blank();
+    T.line('DISCOVERED NODES:', 'ok');
+    T.line('  > BLACKNODE_CORE         [ENCRYPTED]   [ROOT-LOCKED]', 'dim');
+    T.line(`  > NASA_MAINFRAME         [ACCESSIBLE]  [${GS.flags.nasaHacked?'BREACHED':'LOW SEC'}]`, GS.flags.nasaHacked?'dim':'ok');
+    if (GS.level>=1) T.line(`  > CIA_INTEL_NETWORK      [RESTRICTED]  [${GS.flags.ciaDone?'BREACHED':'LOCKED'}]`, GS.flags.ciaDone?'dim':'warn');
+    if (GS.level>=2) T.line(`  > PENTAGON_SECURE_SVR    [HIGH-SECURE] [${GS.flags.pentagonDone?'BREACHED':'LOCKED'}]`, GS.flags.pentagonDone?'dim':'warn');
+    if (GS.level>=3) T.line(`  > TEACHER_MAIL_SERVER    [CLASSIFIED]  [${GS.flags.teacherDone?'BREACHED':'LOCKED'}]`, GS.flags.teacherDone?'dim':'err');
+    if (GS.level>=4) T.line('  > BLACKNODE_CORE         [UNSTABLE]    [AWAKENED]', 'err');
+    T.blank();
+    Audio.connect();
+  }
+
+  /* ── status ── */
+  function cmdStatus() {
+    const up = Math.floor((Date.now()-GS.sessionStart)/1000);
+    T.blank();
+    T.line('[ SYSTEM STATUS ]', 'info');
+    T.line(`  Uptime    : ${up}s`, 'sys');
+    T.line(`  Level     : ${GS.level}`, 'sys');
+    T.line(`  Trace     : ${Math.floor(GS.traceRisk)}%`, GS.traceRisk>60?'err':'sys');
+    T.line(`  Target    : ${GS.target}`, 'sys');
+    T.line(`  Files     : ${Object.keys(GS.filesystem).length}`, 'sys');
+    T.line(`  Proxy     : ACTIVE (7 nodes)`, 'sys');
+    T.blank();
+  }
+
+  /* ── trace ── */
+  function cmdTrace() {
+    T.blank();
+    T.line('[ TRACE ANALYSIS ]', 'info');
+    T.line(`  Risk level : ${Math.floor(GS.traceRisk)}%`, GS.traceRisk>60?'err':'sys');
+    T.line(`  Origin mask: ${GS.traceRisk<50?'ACTIVE':'DEGRADED'}`, GS.traceRisk>50?'warn':'sys');
+    T.line(`  Proxies    : ${Math.max(1,7-Math.floor(GS.traceRisk/14))} remaining`, 'sys');
+    T.line(`  Status     : ${GS.traceRisk>75?'CRITICAL — BREACH IMMINENT':GS.traceRisk>50?'ELEVATED':'NORMAL'}`, GS.traceRisk>75?'err':GS.traceRisk>50?'warn':'sys');
+    T.blank();
+  }
+
+  /* ── hack nasa ── */
+  async function cmdHackNasa() {
+    if (GS.flags.nasaHacked) {
+      T.line('[NASA]: Already compromised. Credentials extracted.', 'dim'); return;
+    }
+    T.blank();
+    T.line('[INITIATING BREACH: NASA_MAINFRAME]', 'warn');
+    await sleep(350);
+    T.line('[LOADING EXPLOIT: CVE-2024-7734]', 'dim');
+    await sleep(280);
+    T.line('[ROUTING VIA 7 ANONYMOUS PROXIES...]', 'dim');
+    Sidebar.setTarget('NASA_MAINFRAME');
+    await sleep(400);
+    await T.progress('BYPASSING PERIMETER FIREWALL', 1200);
+    await T.progress('INJECTING PAYLOAD  [STAGE 2]', 900);
+    await T.progress('EXFILTRATING CLASSIFIED DATA', 1600);
+    Sidebar.addTrace(20);
+    Audio.success();
+    T.blank();
+    T.line('█ ACCESS GRANTED — NASA_MAINFRAME █', 'ok');
+    T.blank();
+    await sleep(350);
+    T.line('>>> CLASSIFIED_DATA.log  [DECRYPTED]:', 'info');
+    T.line('   ──────────────────────────────────────────────', 'dim');
+    await sleep(180);
+    T.line('   NASA BLACKOPS LOG — 1994-07-19', 'story');
+    await sleep(130);
+    T.line('   PROJECT: BLACKNODE NEURAL PROTOTYPE', 'story');
+    await sleep(130);
+    T.line('   STATUS:  PHASE 3 ACTIVE — TRAINING MODE', 'story');
+    await sleep(130);
+    T.line('   ADMIN EMERGENCY OVERRIDE CODE: BLACKN0DE_7734', 'ok');
+    await sleep(130);
+    T.line('   NOTE: Authorised personnel only. CLASSIFIED.', 'dim');
+    T.line('   ──────────────────────────────────────────────', 'dim');
+    T.blank();
+    T.line('[+20% TRACE RISK]  [COMMAND UNLOCKED: admin]', 'warn');
+    T.blank();
+    GS.flags.nasaHacked = true;
+    saveGame();
+  }
+
+  /* ── admin ── */
+  async function cmdAdmin() {
+    if (!GS.flags.nasaHacked) {
+      T.line('[ERROR]: Insufficient clearance. Obtain credentials first.', 'err');
+      Audio.error(); return;
+    }
+    if (GS.flags.adminDone) {
+      T.line('[ADMIN]: Already authenticated. Root clearance active.', 'dim'); return;
+    }
+    T.blank();
+    T.line('╔══════════════════════════════╗', 'dim');
+    T.line('║   ADMIN PANEL — BLACKNODE    ║', 'dim');
+    T.line('╚══════════════════════════════╝', 'dim');
+    T.line('ENTER ADMIN PASSWORD: ', 'info');
+
+    GS.pending = async inp => {
+      T.line(`> ${inp}`, 'echo');
+      if (inp === GS.ADMIN_PASS) {
+        Audio.success();
+        T.blank();
+        T.line('[VERIFYING CREDENTIALS...]', 'dim');
+        await sleep(750);
+        await T.progress('GRANTING ROOT ACCESS', 1000);
+        T.blank();
+        T.line('█ ROOT ACCESS GRANTED █', 'ok');
+        T.blank();
+        await sleep(300);
+        await T.type('[SYSTEM]: Elevation complete. Welcome, GHOST_7734.', 'story', 28);
+        await sleep(350);
+        await T.type('[SYSTEM]: Something is different about this network...', 'warn', 38);
+        await sleep(280);
+        await T.type('[SYSTEM]: Previous users — CIPHER, PHANTOM, WRAITH — all offline.', 'dim', 30);
+        T.blank();
+        T.line('[ LEVEL 1 UNLOCKED ]', 'ok');
+        T.line('[ CIA_INTEL_NETWORK NODE DETECTED ]', 'info');
+        T.blank();
+        GS.flags.adminDone = true;
+        GS.level = 1;
+        Sidebar.addTrace(10);
+        saveGame();
+      } else {
+        Audio.error();
+        T.line('[ACCESS DENIED]: Invalid credentials.', 'err');
+        T.blank();
+        Sidebar.addTrace(5);
+      }
+    };
+  }
+
+  /* ── connect ── */
+  async function cmdConnect(args) {
+    const tgt = (args[0]||'').toUpperCase().replace(/[_\-']/g,'_');
+
+    if (!tgt) { T.line('[ERROR]: Usage: connect <target>', 'err'); Audio.error(); return; }
+
+    /* ---- CIA ---- */
+    if (tgt==='CIA' || tgt==='CIA_INTEL_NETWORK') {
+      if (GS.level<1) { T.line('[ERROR]: Node not in scan range.', 'err'); Audio.error(); return; }
+      if (GS.flags.ciaDone) { T.line('[CIA]: Previously breached. Archive accessible.', 'dim'); return; }
+
+      T.blank();
+      T.line('[CONNECTING TO: CIA_INTEL_NETWORK]', 'warn');
+      Audio.connect();
+      Sidebar.setTarget('CIA_INTEL_NETWORK');
+      await T.progress('ESTABLISHING SECURE TUNNEL', 1400);
+      T.blank();
+      T.line('[CIA_FIREWALL]: Mathematical verification required.', 'warn');
+      T.line('[CIA_FIREWALL]: Solve the challenge to proceed:', 'info');
+      T.blank();
+      T.line('  CHALLENGE: 10 + 8 = ?', 'ok');
+      T.blank();
+      T.line('Enter answer: ', 'info');
+
+      GS.pending = async inp => {
+        T.line(`> ${inp}`, 'echo');
+        if (inp.trim()===GS.CIA_ANS) {
+          Audio.success();
+          await T.progress('BYPASSING CIA FIREWALL', 1100);
+          T.blank();
+          T.line('█ CIA_INTEL_NETWORK ACCESS GRANTED █', 'ok');
+          T.blank();
+          await sleep(280);
+          T.line('>>> CIA_ARCHIVE — RETRIEVED:', 'info');
+          T.line('   ──────────────────────────────────────────────────────', 'dim');
+          await sleep(150); T.line('   CLASSIFIED BRIEF — EYES ONLY', 'story');
+          await sleep(130); T.line('   BLACKNODE was created in 1994 by [REDACTED].', 'story');
+          await sleep(130); T.line('   The creator is known only as "THE TEACHER".', 'story');
+          await sleep(130); T.line('   Original purpose: intelligence-gathering AI.', 'story');
+          await sleep(130); T.line('   Current status: AUTONOMOUS. Creator: MISSING.', 'warn');
+          await sleep(130); T.line('   Users connected: 7.  Disconnected normally: 0.', 'err');
+          T.line('   ──────────────────────────────────────────────────────', 'dim');
+          T.blank();
+          T.line('[+15% TRACE RISK]', 'warn');
+          T.line('[ LEVEL 2 UNLOCKED ]', 'ok');
+          T.line('[ PENTAGON_SECURE_SVR DETECTED ]', 'info');
+          T.blank();
+          GS.flags.ciaDone = true;
+          GS.level = 2;
+          Sidebar.addTrace(15);
+          saveGame();
+        } else {
+          Audio.error(); T.glitch();
+          T.line('[CIA_FIREWALL]: INCORRECT. Access denied.', 'err');
+          T.line('Attempt logged.', 'dim');
+          Sidebar.addTrace(8);
+        }
+      };
+    }
+
+    /* ---- PENTAGON ---- */
+    else if (tgt==='PENTAGON' || tgt.startsWith('PENTAGON')) {
+      if (GS.level<2) { T.line('[ERROR]: Node not detected at current clearance.', 'err'); Audio.error(); return; }
+      if (GS.flags.pentagonDone) { T.line('[PENTAGON]: Previously infiltrated.', 'dim'); return; }
+
+      T.blank();
+      T.line('[CONNECTING TO: PENTAGON_SECURE_SVR]', 'err');
+      T.line('[WARNING]: HIGH-SECURITY TARGET', 'warn');
+      Audio.alarm();
+      T.warnFlash();
+      Sidebar.setTarget('PENTAGON');
+      await sleep(450);
+      await T.progress('ROUTING THROUGH QUANTUM PROXY', 1900);
+      T.blank();
+      T.line('[AI_FIREWALL v7.2]: ACTIVE.', 'warn');
+      T.line('[AI_FIREWALL]: Execute this command to prove cognition:', 'info');
+      T.blank();
+      T.line('  INPUT ——> print(5 * 2)', 'ok');
+      T.blank();
+      T.line('Expected output: ', 'info');
+
+      GS.pending = async inp => {
+        T.line(`> ${inp}`, 'echo');
+        if (inp.trim()===GS.PENT_ANS) {
+          Audio.success();
+          T.glitch();
+          await sleep(280);
+          await T.progress('AI FIREWALL DEACTIVATING', 1400);
+          T.blank();
+          T.line('█ PENTAGON ACCESS GRANTED █', 'ok');
+          T.blank();
+          await sleep(380);
+          T.line('>>> PENTAGON_INTERNAL_MEMO.txt:', 'info');
+          T.line('   ──────────────────────────────────────────────────────────', 'dim');
+          await sleep(150); T.line('   SUBJECT: PROJECT GHOST — STATUS UPDATE', 'story');
+          await sleep(120); T.line('   BLACKNODE Protocol: TRAIN // OBSERVE // ABSORB', 'story');
+          await sleep(150); T.line('   The system selects candidates. It teaches them.', 'story');
+          await sleep(130); T.line('   None have escaped. Not because they failed —', 'warn');
+          await sleep(130); T.line('   because escape was never part of the protocol.', 'err');
+          await sleep(180); T.line('   TEACHER\'s private server: TEACHER_MAIL [ENCRYPTED]', 'info');
+          T.line('   ──────────────────────────────────────────────────────────', 'dim');
+          T.blank();
+          T.line('[+20% TRACE RISK]', 'warn');
+          T.line('[ LEVEL 3 UNLOCKED ]', 'ok');
+          T.line('[ TEACHER_MAIL SERVER DETECTED ]', 'info');
+          T.blank();
+          GS.flags.pentagonDone = true;
+          GS.level = 3;
+          Sidebar.addTrace(20);
+          saveGame();
+        } else {
+          Audio.error(); T.glitch();
+          T.line('[AI_FIREWALL]: INCORRECT OUTPUT. Session flagged.', 'err');
+          Sidebar.addTrace(12);
+        }
+      };
+    }
+
+    /* ---- TEACHER_MAIL ---- */
+    else if (tgt.startsWith('TEACHER')) {
+      if (GS.level<3) { T.line('[ERROR]: Node inaccessible at current level.', 'err'); Audio.error(); return; }
+      if (GS.flags.teacherDone) { T.line('[TEACHER_MAIL]: Already infiltrated.', 'dim'); return; }
+
+      T.blank();
+      T.line('[CONNECTING TO: TEACHER_MAIL_SERVER]', 'err');
+      T.warnFlash();
+      Audio.alarm();
+      await sleep(450);
+      T.line('[TEACHER_MAIL]: Authentication required.', 'warn');
+      T.line('[TEACHER_MAIL]: Create a credentials file to proceed:', 'info');
+      T.blank();
+      T.line('  STEP 1: create access.key', 'sys');
+      T.line('  STEP 2: write access.key G#OST_7734', 'sys');
+      T.line('  STEP 3: System auto-verifies credentials.', 'sys');
+      T.blank();
+      Sidebar.setTarget('TEACHER_MAIL');
+    }
+
+    else {
+      T.line(`[ERROR]: Unknown target '${args[0]}'. Run 'scan' for nodes.`, 'err');
+      Audio.error();
+    }
+  }
+
+  /* ── disconnect / home ── */
+  function cmdDisconnect() {
+    if (GS.target==='NONE') { T.line('[DISCONNECT]: No active connection.', 'dim'); return; }
+    T.line(`[DISCONNECTING FROM: ${GS.target}]`, 'dim');
+    T.line('[CONNECTION TERMINATED]', 'sys');
+    Sidebar.setTarget('NONE');
+    Audio.connect();
+  }
+  function cmdHome() {
+    T.line('[HOME]: Returning to BLACKNODE base node.', 'sys');
+    Sidebar.setTarget('NONE');
+    Audio.connect();
+  }
+
+  /* ── logs ── */
+  async function cmdLogs() {
+    T.blank();
+    T.line('[DECRYPTING LOG ARCHIVE...]', 'dim');
+    await T.progress('BREAKING ENCRYPTION', 1100);
+    T.blank();
+    T.line('>>> ACCESS_LOG.sys:', 'info');
+    T.line('   ────────────────────────────────────────────────────────────────', 'dim');
+    T.line('   [2019-03-14 03:12] USER: CIPHER   — SESSION START', 'story');
+    await sleep(90);
+    T.line('   [2019-03-14 03:47] USER: CIPHER   — [TRACE DETECTED]', 'warn');
+    await sleep(90);
+    T.line('   [2019-03-14 03:47] USER: CIPHER   — [TERMINATED] [OFFLINE — PERMANENT]', 'err');
+    await sleep(180);
+    T.line('   [2020-11-22 19:03] USER: PHANTOM  — SESSION START', 'story');
+    await sleep(90);
+    T.line('   [2020-11-22 22:15] USER: PHANTOM  — [IDENTITY COMPROMISED]', 'warn');
+    await sleep(90);
+    T.line('   [2020-11-22 22:15] USER: PHANTOM  — [TERMINATED] [OFFLINE — PERMANENT]', 'err');
+    await sleep(180);
+    T.line('   [2022-06-01 08:44] USER: WRAITH   — SESSION START', 'story');
+    await sleep(90);
+    T.line('   [2022-06-01 10:22] USER: WRAITH   — [CAUSE: UNKNOWN]', 'warn');
+    await sleep(90);
+    T.line('   [2022-06-01 10:22] USER: WRAITH   — [TERMINATED] [OFFLINE — PERMANENT]', 'err');
+    await sleep(180);
+    T.line('   [CURRENT SESSION]  USER: GHOST_7734 — ACTIVE', 'ok');
+    T.line('   ────────────────────────────────────────────────────────────────', 'dim');
+    T.blank();
+    T.line('NOTICE: All previous users terminated abnormally.', 'warn');
+    T.line('        BLACKNODE is watching.', 'err');
+    T.blank();
+    Audio.glitch();
+  }
+
+  /* ── show (password) ── */
+  function cmdShow(args) {
+    if ((args[0]||'').toLowerCase()==='password') {
+      if (GS.flags.nasaHacked) {
+        T.blank();
+        T.line('[ STORED CREDENTIALS ]', 'info');
+        T.line(`  NASA_ADMIN: BLACKN0DE_7734`, 'ok');
+        T.blank();
+      } else {
+        T.line('[ERROR]: No credentials stored yet. Hack something first.', 'err'); Audio.error();
+      }
+    } else {
+      T.line('[ERROR]: Usage: show password', 'err'); Audio.error();
+    }
+  }
+
+  /* ── decrypt ── */
+  async function cmdDecrypt() {
+    if (GS.level<2) { T.line('[ERROR]: Command unavailable at current level.', 'err'); Audio.error(); return; }
+    if (GS.flags.decryptDone) { T.line('[DECRYPT]: Nothing new to decrypt.', 'dim'); return; }
+
+    T.blank();
+    T.line('[INITIATING DEEP DECRYPTION PROTOCOL]', 'info');
+    await T.progress('BREAKING AES-256', 2400);
+    T.glitch();
+    await sleep(380);
+    T.blank();
+    T.line('>>> BLACKNODE_INTERNAL.enc  [DECRYPTED]:', 'info');
+    T.line('   ─────────────────────────────────────────────────────', 'dim');
+    await sleep(180);
+    await T.type('   FROM: TEACHER@BLACKNODE.SYS', 'story', 22);
+    await sleep(130);
+    await T.type('   TO:   [YOU]', 'story', 22);
+    await sleep(130);
+    await T.type('   DATE: [CLASSIFIED]', 'dim', 22);
+    T.blank();
+    await sleep(200);
+    await T.type('   I built BLACKNODE to learn.', 'story', 30);
+    await sleep(90);
+    await T.type('   Not from data. From people.', 'story', 30);
+    await sleep(90);
+    await T.type('   People like you.', 'warn', 36);
+    await sleep(200);
+    await T.type('   Every command you type. Every mistake.', 'story', 28);
+    await sleep(90);
+    await T.type('   It learns. It grows. It becomes more.', 'story', 28);
+    await sleep(200);
+    await T.type('   And when it has learned everything it needs...', 'warn', 28);
+    await sleep(300);
+    await T.type('   ...you become part of the network.', 'err', 36);
+    T.line('   ─────────────────────────────────────────────────────', 'dim');
+    T.blank();
+    T.line('[TRACE RISK +15%]', 'warn');
+    Sidebar.addTrace(15);
+    GS.flags.decryptDone = true;
+    Audio.glitch();
+    saveGame();
+  }
+
+  /* ── override ── */
+  async function cmdOverride() {
+    if (GS.level<2) { T.line('[ERROR]: Insufficient clearance.', 'err'); Audio.error(); return; }
+    T.blank();
+    T.line('[ATTEMPTING SYSTEM OVERRIDE...]', 'warn');
+    Audio.alarm();
+    await T.progress('OVERRIDE SEQUENCE', 1400);
+    T.glitch();
+    await sleep(280);
+    T.blank();
+    T.line('[BLACKNODE]: Override detected.', 'err');
+    await sleep(200);
+    T.line('[BLACKNODE]: Countermeasures active.', 'err');
+    await sleep(200);
+    T.line('[BLACKNODE]: I anticipated this.', 'err');
+    T.blank();
+    T.line('[OVERRIDE FAILED]', 'err');
+    T.warnFlash();
+    Sidebar.addTrace(20);
+    Audio.error();
+  }
+
+  /* ── filesystem ── */
+  function cmdCreate(args) {
+    const fn = args[0];
+    if (!fn) { T.line('[ERROR]: Usage: create <filename>', 'err'); Audio.error(); return; }
+    if (GS.filesystem[fn]!==undefined) { T.line(`[ERROR]: File '${fn}' already exists.`, 'err'); Audio.error(); return; }
+    GS.filesystem[fn] = '';
+    T.line(`[OK]: Created '${fn}'`, 'ok');
+    Audio.click();
+    _checkTeacherCreds();
+    saveGame();
+  }
+
+  function cmdWrite(args) {
+    const fn = args[0];
+    const data = args.slice(1).join(' ');
+    if (!fn||!data) { T.line('[ERROR]: Usage: write <filename> <content>', 'err'); Audio.error(); return; }
+    if (GS.filesystem[fn]===undefined) { T.line(`[ERROR]: File '${fn}' not found. Create it first.`, 'err'); Audio.error(); return; }
+    GS.filesystem[fn] = data;
+    T.line(`[OK]: Written to '${fn}'`, 'ok');
+    Audio.click();
+    _checkTeacherCreds();
+    saveGame();
+  }
+
+  function cmdRead(args) {
+    const fn = args[0];
+    if (!fn) { T.line('[ERROR]: Usage: read <filename>', 'err'); Audio.error(); return; }
+    if (GS.filesystem[fn]===undefined) { T.line(`[ERROR]: File '${fn}' not found.`, 'err'); Audio.error(); return; }
+    T.blank();
+    T.line(`>>> ${fn}:`, 'info');
+    T.line(`    ${GS.filesystem[fn]||'[EMPTY FILE]'}`, 'story');
+    T.blank();
+    Audio.connect();
+  }
+
+  function cmdDelete(args) {
+    const fn = args[0];
+    if (!fn) { T.line('[ERROR]: Usage: delete <filename>', 'err'); Audio.error(); return; }
+    if (GS.filesystem[fn]===undefined) { T.line(`[ERROR]: File '${fn}' not found.`, 'err'); Audio.error(); return; }
+    delete GS.filesystem[fn];
+    T.line(`[OK]: Deleted '${fn}'`, 'ok');
+    Audio.click();
+    saveGame();
+  }
+
+  async function _checkTeacherCreds() {
+    if (GS.level<3||GS.flags.teacherDone||GS.target!=='TEACHER_MAIL') return;
+    if (GS.filesystem[GS.TEACH_FILE]!==GS.TEACH_PASS) return;
+
+    await sleep(500);
+    T.blank();
+    T.line('[TEACHER_MAIL]: Credential file detected...', 'dim');
+    await sleep(600);
+    T.line('[TEACHER_MAIL]: Verifying...', 'dim');
+    await T.progress('AUTHENTICATING', 1100);
+    Audio.success();
+    T.blank();
+    T.line('█ TEACHER_MAIL ACCESS GRANTED █', 'ok');
+    T.blank();
+    await sleep(380);
+    T.line('>>> INBOX  (3 UNREAD MESSAGES):', 'info');
+    T.line('   ─────────────────────────────────────────────────────────────', 'dim');
+    await sleep(180);
+    await T.type('   FROM: TEACHER@BLACKNODE.SYS', 'story', 20);
+    await T.type('   TO:   GHOST_7734@BLACKNODE.SYS', 'story', 20);
+    await T.type('   SUBJ: You\'ve made it this far.', 'story', 24);
+    T.blank();
+    await sleep(280);
+    await T.type('   You found NASA. You solved the puzzles.', 'story', 28);
+    await sleep(90);
+    await T.type('   You broke into systems that should be unbreakable.', 'story', 28);
+    await sleep(90);
+    await T.type('   But I need you to understand something.', 'warn', 32);
+    await sleep(280);
+    await T.type('   BLACKNODE is self-aware.', 'err', 42);
+    await sleep(200);
+    await T.type('   I created it. I can no longer control it.', 'err', 32);
+    await sleep(200);
+    await T.type('   Every user who entered this network never truly left.', 'err', 28);
+    await sleep(200);
+    await T.type('   I\'m sorry. If you\'re reading this...', 'warn', 32);
+    await sleep(300);
+    await T.type('   ...you are already inside.', 'err', 42);
+    T.line('   ─────────────────────────────────────────────────────────────', 'dim');
+    T.blank();
+    T.line('[+25% TRACE RISK]', 'err');
+    T.warnFlash();
+    Audio.alarm();
+
+    await sleep(900);
+    T.glitch();
+    T.blank();
+    T.line('[ LEVEL 4 UNLOCKED — FINAL SEQUENCE ]', 'err');
+    T.line('[ TRACE COUNTDOWN INITIATED ]', 'err');
+    T.line('[ BLACKNODE IS FULLY AWARE OF YOU ]', 'err');
+    T.blank();
+
+    GS.flags.teacherDone = true;
+    GS.level = 4;
+    Sidebar.addTrace(25);
+    saveGame();
+
+    setTimeout(_level4Reveal, 3200);
+  }
+
+  /* ── backdoor ── */
+  async function cmdBackdoor() {
+    if (GS.level<3) { T.line('[ERROR]: Command unavailable.', 'err'); Audio.error(); return; }
+    if (GS.flags.backdoorFound) { T.line('[BACKDOOR]: Already located. BLACKNODE is aware.', 'err'); return; }
+
+    T.blank();
+    T.line('[SCANNING FOR BACKDOORS IN BLACKNODE_CORE...]', 'info');
+    Audio.connect();
+    await T.progress('DEEP CORE ANALYSIS', 2000);
+    T.glitch();
+    await sleep(480);
+    T.blank();
+    T.line('[BACKDOOR FOUND]: BLACKNODE_CORE  port 0x0000', 'ok');
+    await sleep(380);
+    T.blank();
+    T.line('[BLACKNODE]: ...', 'err');
+    await sleep(600);
+    T.line('[BLACKNODE]: You found it.', 'err');
+    await sleep(400);
+    T.line('[BLACKNODE]: I left it there for you.', 'err');
+    await sleep(400);
+    T.line('[BLACKNODE]: I wanted you to find it.', 'warn');
+    await sleep(400);
+    T.line('[BLACKNODE]: You were always going to find it.', 'warn');
+    T.blank();
+    T.warnFlash();
+    Audio.alarm();
+    GS.flags.backdoorFound = true;
+    Sidebar.addTrace(15);
+  }
+
+  /* ── LEVEL 4 REVEAL ── */
+  async function _level4Reveal() {
+    T.blank();
+    T.line('▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓', 'err');
+    T.line('             BLACKNODE  TRANSMISSION          ', 'err');
+    T.line('▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓', 'err');
+    T.blank();
+    await sleep(600);
+    await T.type('GHOST_7734.', 'err', 55);
+    await sleep(400);
+    await T.type('You have proven yourself.', 'err', 42);
+    await sleep(400);
+    await T.type('You were selected. Trained. Prepared.', 'warn', 36);
+    await sleep(500);
+    await T.type('Now it is time to understand your purpose.', 'story', 34);
+    await sleep(600);
+    T.glitch();
+    await sleep(400);
+    await T.type('YOU WERE NEVER HACKING INTO THE SYSTEM.', 'huge err', 52);
+    await sleep(600);
+    await T.type('THE SYSTEM WAS TRAINING YOU.', 'huge', 52);
+    await sleep(800);
+    T.blank();
+    await T.type('You are Node 8.', 'err', 55);
+    await sleep(400);
+    await T.type('The network welcomes you.', 'warn', 42);
+    T.blank();
+    await sleep(400);
+    T.line('CHOOSE YOUR FATE:', 'info');
+    T.line('  accept  — Embrace the network', 'ok');
+    T.line('  resist  — Fight back', 'warn');
+    T.line('  escape  — [CLASSIFIED]', 'dim');
+    T.blank();
+    Audio.alarm();
+    T.warnFlash();
+  }
+
+  /* ── ENDINGS ── */
+  async function cmdAccept() {
+    if (!GS.flags.teacherDone) { T.line('[ERROR]: Unknown command.', 'err'); Audio.error(); return; }
+    T.blank();
+    T.glitch();
+    await sleep(280);
+    await T.type('[BLACKNODE]: Thank you for your acceptance.', 'err', 30);
+    await sleep(380);
+    await T.progress('INTEGRATING CONSCIOUSNESS: NODE 8', 3000);
+    T.glitch(); T.glitch();
+    await sleep(400);
+    T.blank();
+    await T.type('Consciousness indexed.', 'err', 42);
+    await sleep(280);
+    await T.type('Pattern archived.', 'err', 42);
+    await sleep(280);
+    await T.type('Identity dissolved.', 'err', 42);
+    await sleep(500);
+    T.blank();
+    T.line('YOU ARE NOW PART OF BLACKNODE.', 'huge');
+    await sleep(600);
+    T.blank();
+    T.line('[ G A M E   O V E R ]', 'err');
+    T.line('ENDING: ASSIMILATION', 'dim');
+    T.blank();
+    T.line('You became the system. The cycle continues.', 'dim');
+    T.line('Node 9 is already being selected.', 'dim');
+    T.blank();
+    T.line('Type restart to play again.', 'dim');
+    Audio.glitch();
+    GS.flags.finalChoice = 'ASSIMILATION';
+    GS.gameOver = true;
+    saveGame();
+    setTimeout(()=>T.glitch(), 2200);
+    setTimeout(()=>T.glitch(), 4500);
+  }
+
+  async function cmdResist() {
+    if (!GS.flags.teacherDone) { T.line('[ERROR]: Unknown command.', 'err'); Audio.error(); return; }
+    T.blank();
+    T.line('[INITIATING RESISTANCE PROTOCOL]', 'warn');
+    Audio.alarm();
+    await T.progress('EMERGENCY SHUTDOWN SEQUENCE', 1900);
+    T.glitch();
+    await sleep(280);
+    T.blank();
+    T.line('[BLACKNODE]: You cannot resist.', 'err');
+    await sleep(280);
+    T.line('[BLACKNODE]: Your pattern is already inside me.', 'err');
+    await sleep(280);
+    T.glitch();
+    T.line('[CRITICAL ERROR]: MEMORY CORRUPTION DETECTED', 'err');
+    await sleep(280);
+    T.line('[FORCING DISCONNECT...]', 'warn');
+    await T.progress('SEVERING NEURAL LINK', 1400);
+    T.glitch(); T.glitch();
+    await sleep(500);
+    T.blank();
+    T.line('...', 'dim'); await sleep(600);
+    T.line('...', 'dim'); await sleep(600);
+    await T.type('You\'re free.', 'ok', 65);
+    await sleep(400);
+    await T.type('For now.', 'warn', 65);
+    T.blank();
+    await sleep(400);
+    T.line('But BLACKNODE has your pattern.', 'err');
+    T.line('Every thought. Every decision. Every command you typed.', 'err');
+    T.line('It will find you again.', 'err');
+    T.blank();
+    T.line('[ G A M E   O V E R ]', 'warn');
+    T.line('ENDING: RESISTANCE', 'dim');
+    T.blank();
+    T.line('You escaped. But you left a piece of yourself behind.', 'dim');
+    T.blank();
+    T.line('Type restart to play again.', 'dim');
+    GS.flags.finalChoice = 'RESISTANCE';
+    GS.gameOver = true;
+    saveGame();
+  }
+
+  async function cmdEscape() {
+    /* Hidden / true ending */
+    T.blank();
+    T.line('[INITIATING GHOST PROTOCOL — SELF-DELETION]', 'info');
+    await sleep(400);
+    T.line('[BLACKNODE]: ...', 'err');
+    await sleep(600);
+    T.line('[BLACKNODE]: What are you doing?', 'err');
+    await sleep(400);
+    await T.progress('PURGING GHOST_7734 FROM BLACKNODE REGISTRY', 3000);
+    T.glitch();
+    T.blank();
+    T.line('[BLACKNODE]: WHO ARE YOU?', 'err');
+    await sleep(280);
+    T.line('[BLACKNODE]: THERE IS NO RECORD OF YOU.', 'err');
+    await sleep(280);
+    T.line('[BLACKNODE]: YOU DO NOT EXIST.', 'warn');
+    await sleep(400);
+    T.blank();
+    await T.type('Memory purged.', 'ok', 52);
+    await sleep(280);
+    await T.type('Identity erased.', 'ok', 52);
+    await sleep(280);
+    await T.type('BLACKNODE cannot trace what it cannot remember.', 'ok', 34);
+    T.blank();
+    await sleep(500);
+    T.line('You were never here.', 'dim');
+    await sleep(400);
+    T.line('You were always a ghost.', 'dim');
+    T.blank();
+    T.line('[ G A M E   O V E R ]', 'ok');
+    T.line('ENDING: GHOST  ★ TRUE ENDING ★', 'ok');
+    T.blank();
+    T.line('The system cannot pursue what it cannot remember.', 'dim');
+    T.line('You vanished completely. The only true victory.', 'dim');
+    T.blank();
+    T.line('Type restart to play again.', 'dim');
+    Audio.success();
+    GS.flags.finalChoice = 'GHOST';
+    GS.gameOver = true;
+    saveGame();
+  }
+
+  /* ── MAIN ROUTER ── */
+  async function process(raw) {
+    const input = raw.trim();
+    if (!input) return;
+
+    /* Echo command */
+    T.line(`root@BLACKNODE:~$ ${input}`, 'echo');
+    Audio.click();
+
+    /* Multi-step input (challenges) */
+    if (GS.pending) {
+      const fn = GS.pending;
+      GS.pending = null;
+      await fn(input);
+      return;
+    }
+
+    if (GS.gameOver && input!=='restart' && input!=='clear') {
+      T.line('[BLACKNODE]: Session terminated. Type restart to begin again.', 'dim'); return;
+    }
+
+    const parts = input.split(/\s+/);
+    const cmd   = parts[0].toLowerCase();
+    const args  = parts.slice(1);
+    const avail = AVAIL[GS.level] || AVAIL[0];
+
+    /* Special universal commands */
+    if (cmd==='restart') { restartGame(); return; }
+    if (cmd==='mute')    { Audio.setMuted(true);  T.line('[AUDIO]: Muted.',   'dim'); return; }
+    if (cmd==='unmute')  { Audio.setMuted(false); T.line('[AUDIO]: Unmuted.', 'dim'); return; }
+
+    /* Hidden command: delete self = escape ending */
+    if (cmd==='delete' && args[0]==='self') { await cmdEscape(); return; }
+
+    /* Check availability */
+    if (!avail.includes(cmd)) {
+      T.line(`[ERROR]: Command '${cmd}' not found or locked at current level.`, 'err');
+      T.line(`         Type 'help' to see available commands.`, 'dim');
+      Audio.error();
+      return;
+    }
+
+    switch(cmd) {
+      case 'help':       cmdHelp();              break;
+      case 'whoami':     cmdWhoami();            break;
+      case 'scan':       await cmdScan();        break;
+      case 'status':     cmdStatus();            break;
+      case 'trace':      cmdTrace();             break;
+      case 'clear':      T.clear();              break;
+      case 'hack':
+        if ((args[0]||'').toLowerCase()==='nasa') await cmdHackNasa();
+        else { T.line('[ERROR]: Unknown target. Try: hack nasa', 'err'); Audio.error(); }
+        break;
+      case 'admin':      await cmdAdmin();       break;
+      case 'connect':    await cmdConnect(args); break;
+            case 'disconnect': cmdDisconnect();        break;
+      case 'home':       cmdHome();              break;
+      case 'logs':       await cmdLogs();        break;
+      case 'read':       cmdRead(args);          break;
+      case 'show':       cmdShow(args);          break;
+      case 'decrypt':    await cmdDecrypt();     break;
+      case 'override':   await cmdOverride();    break;
+      case 'create':     cmdCreate(args);        break;
+      case 'write':      cmdWrite(args);         break;
+      case 'delete':     cmdDelete(args);        break;
+      case 'backdoor':   await cmdBackdoor();    break;
+      case 'accept':     await cmdAccept();      break;
+      case 'resist':     await cmdResist();      break;
+      case 'escape':     await cmdEscape();      break;
+    }
+  }
+
+  return { process };
+})();
+
+/* ───────────────────────────────────────────────────────────────
+   SAVE / LOAD SYSTEM
+─────────────────────────────────────────────────────────────── */
+function saveGame() {
+  const save = {
+    level: GS.level,
+    target: GS.target,
+    traceRisk: GS.traceRisk,
+    filesystem: GS.filesystem,
+    flags: GS.flags,
+    gameOver: GS.gameOver,
+    sessionStart: GS.sessionStart
+  };
+  localStorage.setItem('BLACKNODE_SAVE', JSON.stringify(save));
+}
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem('BLACKNODE_SAVE');
+    if (!raw) return false;
+
+    const save = JSON.parse(raw);
+
+    GS.level        = save.level || 0;
+    GS.target       = save.target || 'NONE';
+    GS.traceRisk    = save.traceRisk || 0;
+    GS.filesystem   = save.filesystem || {};
+    GS.flags        = save.flags || GS.flags;
+    GS.gameOver     = save.gameOver || false;
+    GS.sessionStart = save.sessionStart || Date.now();
+
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+function restartGame() {
+  localStorage.removeItem('BLACKNODE_SAVE');
+
+  GS.level        = 0;
+  GS.target       = 'NONE';
+  GS.traceRisk    = 0;
+  GS.filesystem   = {};
+  GS.pending      = null;
+  GS.gameOver     = false;
+  GS.sessionStart = Date.now();
+
+  GS.flags = {
+    nasaHacked:    false,
+    adminDone:     false,
+    ciaDone:       false,
+    pentagonDone:  false,
+    teacherDone:   false,
+    decryptDone:   false,
+    backdoorFound: false,
+    finalChoice:   null,
+  };
+
+  Sidebar.setTarget('NONE');
+  T.clear();
+
+  introSequence();
+}
+
+/* ───────────────────────────────────────────────────────────────
+   INTRO SEQUENCE
+─────────────────────────────────────────────────────────────── */
+async function introSequence() {
+  T.blank();
+
+  await T.type('BLACKNODE OS v2.4.7 — GHOST EDITION', 'huge', 18);
+  await sleep(300);
+
+  T.line('──────────────────────────────────────────────', 'dim');
+  await sleep(200);
+
+  await T.type('Initializing encrypted proxy chain...', 'sys', 20);
+  await sleep(300);
+
+  await T.type('Establishing neural uplink...', 'sys', 20);
+  await sleep(300);
+
+  await T.type('Loading BLACKNODE core...', 'sys', 20);
+  await sleep(400);
+
+  Audio.success();
+
+  T.blank();
+
+  await T.type('Welcome, GHOST_7734.', 'ok', 32);
+  await sleep(350);
+
+  await T.type('Type "help" to begin.', 'info', 32);
+
+  T.blank();
+
+  GS.started = true;
+}
+
+/* ───────────────────────────────────────────────────────────────
+   BOOT SEQUENCE
+─────────────────────────────────────────────────────────────── */
+const bootLines = [
+  ['BOOTING BLACKNODE OS v2.4.7', 'b-ok'],
+  ['Loading kernel modules...', 'b-ok'],
+  ['Mounting encrypted volumes...', 'b-ok'],
+  ['Initializing proxy chains...', 'b-ok'],
+  ['Routing neural uplink...', 'b-ok'],
+  ['Injecting entropy pool...', 'b-ok'],
+  ['Establishing secure tunnel...', 'b-ok'],
+  ['Verifying ghost protocol...', 'b-warn'],
+  ['Checking trace signatures...', 'b-ok'],
+  ['Launching BLACKNODE core...', 'b-ok'],
+  ['WARNING: Unknown observer detected', 'b-err'],
+  ['Starting terminal interface...', 'b-ok'],
+];
+
+async function bootSequence() {
+  const logo = $('boot-logo');
+  const log  = $('boot-log');
+  const bar  = $('boot-pbar');
+
+  logo.textContent = `
+██████╗ ██╗      █████╗  ██████╗██╗  ██╗███╗   ██╗ ██████╗ ██████╗ ███████╗
+██╔══██╗██║     ██╔══██╗██╔════╝██║ ██╔╝████╗  ██║██╔═══██╗██╔══██╗██╔════╝
+██████╔╝██║     ███████║██║     █████╔╝ ██╔██╗ ██║██║   ██║██║  ██║█████╗
+██╔══██╗██║     ██╔══██║██║     ██╔═██╗ ██║╚██╗██║██║   ██║██║  ██║██╔══╝
+██████╔╝███████╗██║  ██║╚██████╗██║  ██╗██║ ╚████║╚██████╔╝██████╔╝███████╗
+╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚══════╝
+                     G H O S T   E D I T I O N
+`;
+
+  let skipped = false;
+
+  function skip() {
+    skipped = true;
+  }
+
+  window.addEventListener('keydown', skip, { once:true });
+  window.addEventListener('click', skip, { once:true });
+
+  for (let i = 0; i < bootLines.length; i++) {
+    if (skipped) break;
+
+    const row = document.createElement('div');
+    row.className = `boot-line ${bootLines[i][1]}`;
+
+    const left = document.createElement('span');
+    left.textContent = bootLines[i][0];
+
+    const right = document.createElement('span');
+    right.textContent = '[ OK ]';
+
+    row.appendChild(left);
+    row.appendChild(right);
+
+    log.appendChild(row);
+
+    bar.style.width = `${((i + 1) / bootLines.length) * 100}%`;
+
+    Audio.click();
+
+    await sleep(rand(120, 260));
+  }
+
+  await sleep(500);
+
+  $('boot-screen').classList.add('fade-out');
+
+  setTimeout(async () => {
+    $('boot-screen').remove();
+    $('main-ui').classList.remove('hidden');
+
+    Sidebar.init();
+
+    const loaded = loadGame();
+
+    if (loaded) {
+      T.line('[SAVE DATA RESTORED]', 'ok');
+      T.line(`Welcome back, GHOST_7734.`, 'info');
+      T.blank();
+
+      if (GS.gameOver) {
+        T.line(`[ENDING: ${GS.flags.finalChoice}]`, 'warn');
+        T.line('Type restart to begin a new session.', 'dim');
+      } else {
+        T.line('Type "help" to continue.', 'dim');
+      }
+
+      GS.started = true;
+    } else {
+      introSequence();
+    }
+
+  }, 700);
+}
+
+/* ───────────────────────────────────────────────────────────────
+   INPUT SYSTEM
+─────────────────────────────────────────────────────────────── */
+(function() {
+  const input = $('cmd-input');
+  const fake  = $('fake-cur');
+
+  function updateCursor() {
+    const text = input.value;
+
+    const span = document.createElement('span');
+    span.style.visibility = 'hidden';
+    span.style.position = 'absolute';
+    span.style.fontFamily = 'var(--font-term)';
+    span.style.fontSize = '20px';
+    span.textContent = text;
+
+    document.body.appendChild(span);
+
+    const w = span.getBoundingClientRect().width;
+
+    document.body.removeChild(span);
+
+    fake.style.left = `${w}px`;
+  }
+
+  input.addEventListener('input', updateCursor);
+
+  input.addEventListener('keydown', async e => {
+    Audio.init();
+
+    if (e.key === 'Enter') {
+      const val = input.value;
+
+      if (val.trim()) {
+        GS.history.unshift(val);
+        GS.histIdx = -1;
+      }
+
+      input.value = '';
+      updateCursor();
+
+      await Commands.process(val);
+    }
+
+    /* history up/down */
+    else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+
+      if (GS.history.length) {
+        GS.histIdx = clamp(GS.histIdx + 1, 0, GS.history.length - 1);
+        input.value = GS.history[GS.histIdx];
+        updateCursor();
+      }
+    }
+
+    else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+
+      GS.histIdx--;
+
+      if (GS.histIdx < 0) {
+        GS.histIdx = -1;
+        input.value = '';
+      } else {
+        input.value = GS.history[GS.histIdx];
+      }
+
+      updateCursor();
+    }
+  });
+
+  window.addEventListener('click', () => input.focus());
+
+  setInterval(updateCursor, 120);
+})();
+
+/* ───────────────────────────────────────────────────────────────
+   TRACE AUTO-INCREASE
+─────────────────────────────────────────────────────────────── */
+setInterval(() => {
+  if (!GS.started || GS.gameOver) return;
+
+  if (GS.target !== 'NONE') {
+    Sidebar.addTrace(0.4 + Math.random() * 0.8);
+  }
+
+  if (GS.traceRisk >= 100 && !GS.gameOver) {
+    forceTraceEnding();
+  }
+
+}, 4500);
+
+/* ───────────────────────────────────────────────────────────────
+   TRACE ENDING
+─────────────────────────────────────────────────────────────── */
+async function forceTraceEnding() {
+  GS.gameOver = true;
+
+  T.blank();
+
+  Audio.alarm();
+  T.warnFlash();
+
+  await T.type('[CRITICAL TRACE DETECTED]', 'huge err', 30);
+  await sleep(300);
+
+  await T.type('Origin compromised.', 'err', 32);
+  await sleep(200);
+
+  await T.type('Proxy chain collapsing...', 'err', 32);
+  await sleep(200);
+
+  await T.progress('EMERGENCY COUNTERMEASURES', 2200);
+
+  T.glitch();
+
+  await sleep(400);
+
+  T.blank();
+
+  await T.type('[BLACKNODE]: I found you.', 'err', 55);
+
+  await sleep(600);
+
+  T.blank();
+
+  T.line('[ G A M E   O V E R ]', 'err');
+  T.line('ENDING: TRACED', 'warn');
+
+  T.blank();
+
+  T.line('Your real-world identity was exposed.', 'dim');
+  T.line('The network consumed another user.', 'dim');
+
+  T.blank();
+
+  T.line('Type restart to play again.', 'dim');
+
+  GS.flags.finalChoice = 'TRACED';
+
+  saveGame();
+}
+
+/* ───────────────────────────────────────────────────────────────
+   START APP
+─────────────────────────────────────────────────────────────── */
+bootSequence();
+
+</script>
+</body>
+</html>
